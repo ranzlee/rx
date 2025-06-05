@@ -20,8 +20,8 @@ public class CounterHandler : IRequestHandler {
     ) {
         return await rxDriver
             .With(context)
-            .RenderPage<App, CounterPage>()
-            .Invoke();
+            .AddPage<App, CounterPage>()
+            .Render();
     }
 
     public static async Task<IResult> DecrementCounter(
@@ -38,7 +38,7 @@ public class CounterHandler : IRequestHandler {
             .With(context)
             .AddFragment<CounterValue, CounterModel>(model)
             .AddFragment<CounterError, CounterModel>(model)
-            .Invoke();
+            .Render();
     }
 
     public static async Task<IResult> IncrementCounter(
@@ -55,6 +55,6 @@ public class CounterHandler : IRequestHandler {
             .With(context)
             .AddFragment<CounterValue, CounterModel>(model)
             .AddFragment<CounterError, CounterModel>(model)
-            .Invoke();
+            .Render();
     }
 }

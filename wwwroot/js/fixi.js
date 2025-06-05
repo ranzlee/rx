@@ -136,8 +136,7 @@ function morphFragments(cfg) {
 		Idiomorph.morph(document.head, doc.head, {head: {style: 'append'}})
 	}
 	//morph body elements
-	const bodyNodes = doc.body.childNodes;
-	bodyNodes.forEach(node => {
+	doc.body.childNodes.forEach(node => {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			return;
 		}
@@ -152,11 +151,13 @@ function morphFragments(cfg) {
 function replaceFragments(cfg) {
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(cfg.text, 'text/html');
+	//append new head elements
 	if (doc.head.children.length > 0) {
 		Idiomorph.morph(document.head, doc.head, {head: {style: 'append'}})
 	}
-	const bodyNodes = doc.body.childNodes;
-	bodyNodes.forEach(async node => {
+	//replace body elements
+	const bodyNodes = Array.from(doc.body.childNodes);
+	bodyNodes.forEach(node => {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			return;
 		}
@@ -164,10 +165,9 @@ function replaceFragments(cfg) {
 		if (target === null) {
 			return;
 		}
-		await cfg.transition(() => {
-			target.replaceWith(node);
-			node.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
-		}).finished;
+		//target.replaceWith(node);
+		target["outerHTML"] = node.outerHTML;
+		node.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
 	});
 }
 
@@ -176,7 +176,7 @@ document.addEventListener("fx:config", evt => {
 	encodeBodyAsJson(evt);
 });
 
-document.addEventListener("fx:after", async evt => {
+document.addEventListener("fx:after", evt => {
 	const cfg = evt.detail.cfg;
 	//custom behaviors
 	if (cfg.response.status === 204) {
@@ -193,7 +193,7 @@ document.addEventListener("fx:after", async evt => {
 	const redirect = cfg.response.headers.get("fx-redirect");
 	if (redirect) {
 		evt.preventDefault();
-		window.location.assign(val);
+		window.location.assign(redirect);
 		return;
 	}
 	//swap processing
@@ -215,21 +215,5 @@ document.addEventListener("fx:after", async evt => {
 		cfg.swap = (cfg) => morphFragments(cfg);
 		return;
 	}
-	// cfg.response.headers.forEach(async (val, key) => { 
-	// 	if (key.toLowerCase() === "fx-swap") {
-	// 		if (val === "replace") {
-	// 			cfg.target[cfg.swap] = cfg.text
-	// 			await cfg.transition(doSwap).finished
-	// 			return
-	// 		}
-	// 		if (val === "morph") {
-	// 			cfg.swap = val;
-	// 			addMorphSwapOption(cfg);
-	// 			return;
-	// 		}
-	// 		cfg.swap = val;
-	// 		return;
-	// 	}
-	// });
 });
 

@@ -16,8 +16,8 @@ public class HomeHandler : IRequestHandler {
     ) {
         return await rxDriver
             .With(context)
-            .RenderPage<App, HomePage>()
-            .Invoke();
+            .AddPage<App, HomePage>()
+            .Render();
     }
 }
 

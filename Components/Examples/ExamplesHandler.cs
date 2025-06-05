@@ -16,7 +16,7 @@ public class ExamplesHandler : IRequestHandler {
     ) {
         return await rxDriver
             .With(context)
-            .RenderPage<App, ExamplesPage>()
-            .Invoke();
+            .AddPage<App, ExamplesPage>()
+            .Render();
     }
 }

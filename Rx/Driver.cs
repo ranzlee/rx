@@ -23,11 +23,11 @@ file sealed class Driver(HtmlRenderer htmlRenderer, ILogger<Driver> logger) : ID
 }
 
 public interface IRxResponseBuilder {
-    IRxResponseBuilder RenderPage<TRoot, TComponent, TModel>(TModel model)
+    IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model)
     where TRoot : IRootComponent
     where TComponent : IComponent, IComponentModel<TModel>;
 
-    IRxResponseBuilder RenderPage<TRoot, TComponent>()
+    IRxResponseBuilder AddPage<TRoot, TComponent>()
     where TRoot : IRootComponent
     where TComponent : IComponent;
 
@@ -39,21 +39,21 @@ public interface IRxResponseBuilder {
     IRxResponseBuilder AddFragment<TComponent>()
     where TComponent : IComponent;
 
-    Task<IResult> Invoke();
+    Task<IResult> Render();
 }
 
 file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRenderer, ILogger logger) : IRxResponseBuilder {
-    private bool isInvoked = false;
+    private bool isRendering = false;
     private Type? rootComponent = null;
     private readonly Dictionary<string, object?> rootParameters = [];
     private readonly StringBuilder content = new();
     private readonly List<Task> renderTasks = [];
     private string target = null!;
 
-    public IRxResponseBuilder RenderPage<TRoot, TComponent, TModel>(TModel model)
+    public IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model)
     where TRoot : IRootComponent
     where TComponent : IComponent, IComponentModel<TModel> {
-        CheckInvokedStatus();
+        CheckRenderingStatus();
         CheckPageRenderStatus();
         rootComponent = typeof(TRoot);
         rootParameters.Add(nameof(IRootComponent.MainContent), typeof(TComponent));
@@ -63,17 +63,17 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         return this;
     }
 
-    public IRxResponseBuilder RenderPage<TRoot, TComponent>()
+    public IRxResponseBuilder AddPage<TRoot, TComponent>()
     where TRoot : IRootComponent
     where TComponent : IComponent {
-        CheckInvokedStatus();
+        CheckRenderingStatus();
         CheckPageRenderStatus();
         rootComponent = typeof(TRoot);
         rootParameters.Add(nameof(IRootComponent.MainContent), typeof(TComponent));
         return this;
     }
     public IRxResponseBuilder AddFragment<TComponent, TModel>(TModel model) where TComponent : IComponent, IComponentModel<TModel> {
-        CheckInvokedStatus();
+        CheckRenderingStatus();
         CheckPageRenderStatus();
         var parameters = ParameterView.FromDictionary(new Dictionary<string, object?> {
             { nameof(IComponentModel<TModel>.Model), model }
@@ -86,7 +86,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
     }
 
     public IRxResponseBuilder AddFragment<TComponent>() where TComponent : IComponent {
-        CheckInvokedStatus();
+        CheckRenderingStatus();
         CheckPageRenderStatus();
         renderTasks.Add(htmlRenderer.Dispatcher.InvokeAsync(async () => {
             var output = await htmlRenderer.RenderComponentAsync<TComponent>();
@@ -96,21 +96,21 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
     }
 
     public IRxResponseBuilder SetTarget(string targetElementId) {
-        CheckInvokedStatus();
+        CheckRenderingStatus();
         CheckPageRenderStatus();
         target = $"#{targetElementId.TrimStart('#')}";
         return this;
     }
 
-    public async Task<IResult> Invoke() {
-        CheckInvokedStatus();
+    public async Task<IResult> Render() {
+        CheckRenderingStatus();
         if (rootComponent is not null) {
             return HandlePageRequest();
         }
         if (!context.Request.Headers.ContainsKey("fx-request")) {
             return TypedResults.NotFound();
         }
-        isInvoked = true;
+        isRendering = true;
         if (renderTasks.Count == 0) {
             if (context.Request.Method.Equals("delete", StringComparison.CurrentCultureIgnoreCase)) {
                 ProcessTarget();
@@ -125,7 +125,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
 
     private RazorComponentResult HandlePageRequest() {
         if (context.Request.Headers.ContainsKey("fx-request")) {
-            throw new InvalidOperationException("A RenderPage was attempted on a fetch request.");
+            throw new InvalidOperationException("AddPage was attempted on a fetch request.");
         }
         return new RazorComponentResult(rootComponent!, rootParameters);
     }
@@ -137,15 +137,15 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         context.Response.Headers.Append("fx-target", target);
     }
 
-    private void CheckInvokedStatus() {
-        if (isInvoked) {
-            throw new InvalidOperationException("Invoke has already been called and may only be called once per request.");
+    private void CheckRenderingStatus() {
+        if (isRendering) {
+            throw new InvalidOperationException("Render has already been called and may only be called once per request.");
         }
     }
 
     private void CheckPageRenderStatus() {
         if (rootComponent is not null) {
-            throw new InvalidOperationException("Driver is set to render a page. No other operations are allowed and Invoke must be called.");
+            throw new InvalidOperationException("Driver is set to render a page. No other operations are allowed and Render must be called.");
         }
     }
 }
