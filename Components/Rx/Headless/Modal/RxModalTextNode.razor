@@ -1,0 +1,28 @@
+<span id="@(Id)" @attributes="@(AdditionalAttributes)"></span>
+<script>
+    (function() {
+        var textNode = document.getElementById('@(Id)');
+        var modal = textNode.closest('dialog');
+        if (modal === null) {
+            console.warn(`dialog element not found for text node ${textNode.id}.`);
+            return;
+        }
+        modal.addEventListener("opened", function(evt) {
+            textNode.innerText = evt.detail?.textNodeValue ?? "";
+        });
+        modal.addEventListener("close", function() {
+            textNode.innerText = '';
+        });
+    })();
+</script>
+
+@code {
+    [Parameter] public string Id { get; set; } = null!;
+    [Parameter(CaptureUnmatchedValues = true)] public IDictionary<string, object>? AdditionalAttributes { get; set; }
+    protected override void OnParametersSet() {
+        if (string.IsNullOrWhiteSpace(Id)) {
+            Id = Utilities.GenerateElementId();
+        }
+    }
+    
+}

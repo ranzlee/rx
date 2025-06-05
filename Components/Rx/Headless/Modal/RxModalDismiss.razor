@@ -1,0 +1,32 @@
+<button id="@(Id)" 
+    type="button"  
+    aria-label="Dismiss this dialog" 
+    @attributes="@(AdditionalAttributes)">
+    @(ChildContent)
+</button>
+<script>
+    (function() {
+        var dismiss = document.getElementById("@(Id)");
+        var modal = dismiss.closest('dialog');
+        dismiss.onclick = function() {
+            if (modal === null) {
+                console.warn(`dialog element not found for modal dismiss ${dismiss.id}.`);
+                return;
+            }
+            modal.style.display = "none";
+            modal.close();
+            modal.style.display = "";
+        }
+    })();
+</script>
+
+@code {
+    [Parameter(CaptureUnmatchedValues = true)] public IDictionary<string, object>? AdditionalAttributes { get; set; }
+    [Parameter] public string Id { get; set; } = null!;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    protected override void OnParametersSet() {
+        if (string.IsNullOrWhiteSpace(Id)) {
+            Id = Utilities.GenerateElementId();
+        }
+    }
+}

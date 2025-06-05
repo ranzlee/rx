@@ -1,0 +1,164 @@
+@implements IComponentModel<RxAutoCompleteModel>
+
+@{
+    if (!Model.Items.Any()) {
+        return;
+    }
+    var itemListId = Utilities.GenerateElementId(); 
+    var strong = $"<strong>";
+}
+<ul tabindex="-1" 
+    id="@(itemListId)" 
+    role="listbox" 
+    style="display: none; pointer-events: all">
+    @foreach (var item in sortedItems)
+    {
+        var itemId = Utilities.GenerateElementId();
+        var li = item.DisplayValue;
+        var i = item.DisplayValue.ToLower().IndexOf(Model.SearchPattern.ToLower());
+        if (i >= 0) {
+            li = li.Insert(i, strong);
+            li = li.Insert(Math.Min(i + strong.Length + Model.SearchPattern.Length, li.Length), "</strong>");
+        }
+        <li tabindex="-1"
+            id="@(itemId)-item" 
+            role="option" 
+            aria-selected="false">
+            <button tabindex="-1"
+                    id="@(itemId)"
+                    type="button"
+                    title="@($"Select {item.DisplayValue}")"
+                    aria-label="@($"Select {item.DisplayValue}")">
+                <span>@((MarkupString)li)</span>
+            </button>
+            <script>
+                (function(){
+                    //var xhrTriggered = false;
+                    var item = document.getElementById('@(itemId)');
+                    // btn -> li -> ul -> div -> div.id
+                    var componentId = item.parentElement.parentElement.parentElement.parentElement.id;
+                    var matchClass = document.getElementById(`${componentId}-autocomplete-pattern-match-class`).value ?? '';
+                    if (matchClass !== '') {
+                        var strong = item.querySelector("span strong");
+                        if (strong) {
+                            strong.classList.value = matchClass;
+                        }
+                    }
+                    var list = document.getElementById(`${componentId}-autocomplete-list`);
+                    item.onclick = function() {
+                        var selected = document.getElementById(`${componentId}-autocomplete-selected-id`);
+                        selected.value = '@(item.Id)';
+                        var input = document.getElementById(`${componentId}-input`);
+                        input.value = '@(item.DisplayValue)';
+                        input.focus();
+                        var onSelectedEvt = new Event(`${componentId}-autocomplete-on-selected`, { bubbles: true });
+                        selected.dispatchEvent(onSelectedEvt);
+                        var skipSelectedValidation = document.getElementById(`${componentId}-autocomplete-skip-selected-validation`).value;
+                        if (skipSelectedValidation === 'false') {
+                            var validateEvt = new Event('input', { bubbles: true });
+                            selected.dispatchEvent(validateEvt);
+                        }
+                        list.replaceChildren([]);
+                    }
+                })()
+            </script>
+        </li>
+    }
+</ul>
+<script>
+    (function(){
+        var itemList = document.getElementById('@(itemListId)'); 
+        // ul -> div -> div.id
+        var componentId = itemList.parentElement.parentElement.id;
+        var listClassList = document.getElementById(`${componentId}-autocomplete-list-class`).value; 
+        var listMaxPixelHeight = document.getElementById(`${componentId}-autocomplete-list-max-height`).value; 
+        var container = document.getElementById(componentId);
+        itemList.style.width = `${container.clientWidth}px`;
+        itemList.style.maxHeight = listMaxPixelHeight && parseInt(listMaxPixelHeight) > 0 
+            ? `${listMaxPixelHeight}px` 
+            : '250px';
+        itemList.classList.value = listClassList;
+        itemList.style.display = "block";
+        var input = document.getElementById(`${componentId}-input`);
+        input.setAttribute("aria-expanded", "true");
+        var list = document.getElementById(`${componentId}-autocomplete-list`);
+        var liSelected;
+        function cancelEvent(evt) {
+            evt.preventDefault();
+            evt.stopPropagation();
+        }
+        function setListItem(ele) {
+            if (!ele) {
+                return;
+            }
+            if (liSelected) {
+                liSelected.setAttribute("aria-selected", "false");
+            }
+            liSelected = ele;
+            liSelected.setAttribute("aria-selected", "true");
+            liSelected.firstChild.focus();
+        }
+        input.onkeydown = function(evt) {
+            if (evt.key === 'ArrowUp' || evt.code === 'ArrowUp' || evt.keyCode === 38) {
+                cancelEvent(evt);
+                if (!list.firstChild) {
+                    return;
+                }
+                setListItem(list.firstChild.lastChild);    
+            }
+            if (evt.key === 'ArrowDown' || evt.code === 'ArrowDown' || evt.keyCode === 40) {
+                cancelEvent(evt);
+                if (!list.firstChild) {
+                    return;
+                }
+                setListItem(list.firstChild.firstChild);
+            }
+            if (evt.key === 'Escape' || evt.code === 'Escape' || evt.keyCode === 27) {
+                input.focus();
+                input.setAttribute("aria-expanded", "false");
+                list.replaceChildren([]);
+            }
+        }
+        list.onkeydown = function(evt) {
+            if (evt.key === 'ArrowUp' || evt.code === 'ArrowUp' || evt.keyCode === 38) {
+                cancelEvent(evt);
+                if (!liSelected) {
+                    return;
+                }
+                setListItem(liSelected.previousSibling);
+            }
+            if (evt.key === 'ArrowDown' || evt.code === 'ArrowDown' || evt.keyCode === 40) {
+                cancelEvent(evt);
+                if (!liSelected) {
+                    return;
+                }
+                setListItem(liSelected.nextSibling);
+            }
+            if (evt.key === 'Escape' || evt.code === 'Escape' || evt.keyCode === 27) {
+                evt.preventDefault();
+                evt.stopPropagation();
+                input.focus();
+                input.setAttribute("aria-expanded", "false");
+                list.replaceChildren([]);
+            }
+        }
+    })()
+</script>
+
+@code {
+    private IEnumerable<IRxAutoCompleteItem> sortedItems = [];
+    [Parameter] public RxAutoCompleteModel Model { get; set; } = new(true, string.Empty, []);
+
+    protected override void OnParametersSet() {
+        if (!Model.Items.Any()) {
+            return;
+        }
+        if (Model.SortExactMatchesFirst) {
+            var exactMatches = Model.Items.Where(x => x.DisplayValue.ToLower().IndexOf(Model.SearchPattern.ToLower()) >= 0);
+            var fuzzyMatches = Model.Items.Where(x => x.DisplayValue.ToLower().IndexOf(Model.SearchPattern.ToLower()) < 0);
+            sortedItems = [..exactMatches.OrderBy(x => x.DisplayValue), ..fuzzyMatches.OrderBy(x => x.DisplayValue)];
+            return;
+        }
+        sortedItems = Model.Items.OrderBy(x => x.DisplayValue);
+    }
+}

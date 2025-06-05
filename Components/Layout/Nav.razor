@@ -1,0 +1,49 @@
+<div class="z-50 bg-base-100 min-h-full w-96 p-4">
+    <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-semibold text-primary">
+            Hx Menu
+        </h2>
+        <button id="close-sidebar" type="button" aria-label="close sidebar" class="btn btn-ghost">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block h-4 w-4 stroke-current">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+        <script>
+            (function() {
+                var menuToggle = document.getElementById("menu-toggle");
+                var closeSidebar = document.getElementById("close-sidebar");
+                var drawerState = document.getElementById("site-drawer");
+                closeSidebar.onclick = function() {
+                    drawerState.checked = false;
+                    menuToggle.focus();
+                }
+            })()
+        </script>
+    </div>
+    <ul class="menu w-full">
+        <li>
+            <RxNavItem 
+                NavItemRoute="/" 
+                CurrentRouteClass="font-semibold">
+                Home
+            </RxNavItem>
+        </li>
+        <li>
+            <RxNavItem 
+                NavItemRoute="/examples" 
+                MatchPartial="@(true)" 
+                CurrentRouteClass="font-semibold">
+                Examples
+            </RxNavItem>
+            <ul class="bg-base-100 rounded-t-none p-2">
+                <li>
+                    <RxNavItem 
+                        NavItemRoute="/examples/counter" 
+                        CurrentRouteClass="font-semibold">
+                        The Obligatory Counter
+                    </RxNavItem>
+                </li>
+            </ul>
+        </li>
+    </ul>
+</div>

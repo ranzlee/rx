@@ -1,0 +1,16 @@
+@implements IComponentModel<CounterModel>
+
+<div id="counter-error">
+    @if (ValidationContext.TryGetError(nameof(Model.Count), out var error)) {
+        <div class="flex justify-center">
+            <p id="count-error" class="text-error">
+                <strong class="text-2xl">@(error.ErrorMessage)</strong>
+            </p>
+        </div>
+    }
+</div>   
+
+@code {
+    [Inject] public ValidationContext ValidationContext { get; set; } = null!;
+    [Parameter] public CounterModel Model { get; set; } = new();
+}

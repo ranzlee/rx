@@ -1,0 +1,29 @@
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+
+#Rider
+.idea/
+
+#macos
+.DS_Store
+
+# Azurite
+__azurite*
+__blobstorage*
+
+# Node
+node_modules/
+
+# Rx Project artifacts
+bin/
+obj/
+wwwroot/css/app.css
+appsettings.Development.json

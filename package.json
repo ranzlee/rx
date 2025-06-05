@@ -1,0 +1,19 @@
+{
+  "name": "hx",
+  "version": "1.0.0",
+  "description": "A .NET Minimal API/Razor and htmx meta-framework",
+  "scripts": {
+    "build-css": "npx @tailwindcss/cli -i app.css -o wwwroot/css/app.css --minify"
+  },
+  "author": "anonymous",
+  "license": "0BSD",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.0.16",
+    "@tailwindcss/typography": "^0.5.16",
+    "daisyui": "^5.0.9",
+    "htmx-ext-json-enc": "^2.0.2",
+    "htmx.org": "^2.0.4",
+    "idiomorph": "^0.7.3",
+    "tailwindcss": "^4.0.16"
+  }
+}

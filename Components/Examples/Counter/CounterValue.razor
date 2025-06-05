@@ -1,0 +1,24 @@
+@implements IComponentModel<CounterModel>
+
+<div id="counter-value"
+    aria-errormessage="@(ValidationContext.TryGetError(nameof(Model.Count), out _) ? "count-error" : false)"
+    aria-invalid="@(ValidationContext.TryGetError(nameof(Model.Count), out _) ? "true" : false)"
+    class="flex justify-center items-center">
+    <input 
+        id="@(nameof(Model.Count))" 
+        name="@(nameof(Model.Count))" 
+        type="hidden" 
+        value="@(Model.Count)">
+    <div class="min-w-64 flex justify-center">
+        <div>
+            <strong class="text-9xl font-mono @(ValidationContext.TryGetError(nameof(Model.Count), out _) ? "text-error" : "")">
+                @Model.Count
+            </strong>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] public ValidationContext ValidationContext { get; set; } = null!;
+    [Parameter] public CounterModel Model { get; set; } = new();
+}

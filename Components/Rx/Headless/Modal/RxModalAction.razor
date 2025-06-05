@@ -1,0 +1,56 @@
+<button
+    id="@(Id)"
+    @attributes="@(AdditionalAttributes)">
+    @(ChildContent)
+</button>
+<input id="@(Id)-hx-method" type="hidden" value=""> 
+<input id="@(Id)-hx-route" type="hidden" value=""> 
+<script>
+    (function() {
+        var action = document.getElementById("@(Id)");
+        var method = document.getElementById("@(Id)-hx-method");
+        var route = document.getElementById("@(Id)-hx-route");
+        ['hx-delete', 'hx-post', 'hx-put', 'hx-patch'].some(m => {
+            var attr = action.getAttribute(m);
+            if (attr === null) {
+                return false;
+            }
+            method.value = m;
+            attr = attr.trim();
+            if (attr.endsWith("/")) {
+                attr = attr.slice(0, -1); 
+            }
+            route.value = attr;
+            return true;
+        });
+        var modal = action.closest('dialog');
+        if (modal === null) {
+            console.warn(`dialog element not found for modal action ${action.id}.`);
+            return;
+        }
+        modal.addEventListener("opened", function(evt) {
+            if (method.value === '') {
+                console.warn(`hx-[method] not provided for modal action.`);
+                return;
+            }
+            if (route.value === '') {
+                console.warn(`${method.value} route not provided for modal action.`);
+                return;
+            }
+            var routeValue = evt.detail?.routeValue ?? "";
+            action.setAttribute(method.value, `${route.value}/${routeValue}`);
+            htmx.process(action);
+        });
+    })();
+</script>
+
+@code {
+    [Parameter] public string Id { get; set; } = null!;
+    [Parameter(CaptureUnmatchedValues = true)] public IDictionary<string, object>? AdditionalAttributes { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    protected override void OnParametersSet() {
+        if (string.IsNullOrWhiteSpace(Id)) {
+            Id = Utilities.GenerateElementId();
+        }
+    }
+}

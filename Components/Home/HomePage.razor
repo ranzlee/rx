@@ -1,0 +1,50 @@
+<HeadContent>
+    <title>Hx - Welcome</title>
+</HeadContent>
+
+<div class="flex justify-center">
+    <article class="prose prose-a:link prose-a:link-primary prose-strong:text-info prose-strong:text-nowrap prose-strong:font-mono">
+        <div class="flex justify-center">
+            <h2>Welcome</h2>
+        </div>
+        <p>
+            The name RazorX represents the combination of 
+            <a target="_blank" href="https://learn.microsoft.com/en-us/aspnet/core/blazor/components/?view=aspnetcore-9.0">ASP.NET 
+            Razor Components</a> on the server with <a target="_blank" href="https://v2-0v2-0.htmx.org/">htmx</a> on the client. 
+            <a target="_blank" href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/overview?view=aspnetcore-9.0">ASP.NET Minimal APIs</a> 
+            provide the request-response processing between the client and server. Razor Components are only used for server-side templating,
+            and there are no dependencies on Blazor for routing or interactivity.    
+        </p>
+        <p>
+            <strong>{Project}/Rx</strong> contains the types and implementations for concerns
+            like routing, model binding, rendering, and validation orchestration
+            for <a target="_blank" href="https://docs.fluentvalidation.net/en/latest/">FluentValidation</a>. 
+        </p>
+        <p>    
+            <strong>{Project}/wwwroot/js/razorx.js</strong> contains the JS integrations with htmx for things like
+            including the anti-forgery token as a request header and processing hx-trigger response headers. 
+        </p>
+        <p>    
+            <strong>{Project}/Components/Rx</strong>
+            contains common use components. These components are separated into
+            headless and skinned. Headless components provide structure, functionality, and accessibility, but lack
+            visual styling. The skinned components wrap the headless components with CSS visual styling applied.
+        </p>
+        <p>
+            <a target="_blank" href="https://tailwindcss.com/">Tailwind CSS</a> is the core 
+            CSS framework and design system, and <a target="_blank" href="https://daisyui.com/">daisyUI</a> is the 
+            sematic CSS library. <strong>{Project}/app.css</strong> contains the Tailwind CSS 
+            imports and base styles required for component behavior. This is the input file for the Tailwind CSS 
+            build process that creates the <strong>{Project}/wwwroot/css/app.css</strong> output file.
+        </p>
+        <p>
+            Take a look at the <a href="/examples">examples</a> to see
+            what is possible with a Hypermedia Event-Driven Application. Once you no longer need the examples
+            as reference, just delete and <strong>{Project}/Components/Examples</strong>
+            folder and remove the nav links. 
+        </p>
+        <p>
+            Happy coding!
+        </p>
+    </article>
+</div>
