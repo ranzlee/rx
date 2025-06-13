@@ -38,7 +38,7 @@ public class CounterHandler : IRequestHandler {
             .With(context)
             .AddFragment<CounterValue, CounterModel>(model)
             .AddFragment<CounterError, CounterModel>(model)
-            .Render();
+            .Render(FragmentSwapStrategyType.Morph);
     }
 
     public static async Task<IResult> IncrementCounter(
@@ -55,6 +55,6 @@ public class CounterHandler : IRequestHandler {
             .With(context)
             .AddFragment<CounterValue, CounterModel>(model)
             .AddFragment<CounterError, CounterModel>(model)
-            .Render();
+            .Render(FragmentSwapStrategyType.Morph, true);
     }
 }

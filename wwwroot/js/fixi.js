@@ -122,20 +122,29 @@ function encodeBodyAsJson(evt) {
 	evt.detail.cfg.body = JSON.stringify(object);
 }
 
-function morphTarget(target, node) {
-	Idiomorph.morph(target, node, { morphStyle: "outerHTML" }).forEach(n => {
-		n.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
+function normalizeScriptTags(fragment) {
+	Array.from(fragment.querySelectorAll('script')).forEach(script => {
+      	const newScript = duplicateScript(script);
+    	const parent = script.parentNode;
+        parent.insertBefore(newScript, script);
+        script.remove();
+    });
+}
+
+function duplicateScript(script) {
+    const newScript = document.createElement('script');
+	Array.from(script.attributes).forEach(attr => {
+		newScript.setAttribute(attr.name, attr.value);
 	});
+    newScript.textContent = script.textContent;
+    newScript.async = false;
+    return newScript;
 }
 
 function morphFragments(cfg) {
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(cfg.text, 'text/html');
-	//append new head elements
-	if (doc.head.children.length > 0) {
-		Idiomorph.morph(document.head, doc.head, {head: {style: 'append'}})
-	}
-	//morph body elements
+	//morph fragments
 	doc.body.childNodes.forEach(node => {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			return;
@@ -144,20 +153,22 @@ function morphFragments(cfg) {
 		if (target === null) {
 			return;
 		}
-		morphTarget(target, node);
+		const ignoreActive = cfg.response.headers.get("fx-morph-ignore-active") === "True";
+		Idiomorph.morph(target, node, { morphStyle: "outerHTML", ignoreActiveValue: ignoreActive }).forEach(n => {
+			normalizeScriptTags(n);
+			n.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
+		});
 	});
 }
 
 function replaceFragments(cfg) {
 	const parser = new DOMParser();
-	const doc = parser.parseFromString(cfg.text, 'text/html');
-	//append new head elements
-	if (doc.head.children.length > 0) {
-		Idiomorph.morph(document.head, doc.head, {head: {style: 'append'}})
-	}
-	//replace body elements
-	const bodyNodes = Array.from(doc.body.childNodes);
-	bodyNodes.forEach(node => {
+	const doc = parser.parseFromString('<body><template>' + cfg.text + '</template></body>', 'text/html');
+	console.log(doc);
+	const template = doc.body.querySelector('template').content;
+	//replace fragments
+	const fragments = Array.from(template.childNodes);
+	fragments.forEach(node => {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			return;
 		}
@@ -165,9 +176,9 @@ function replaceFragments(cfg) {
 		if (target === null) {
 			return;
 		}
-		//target.replaceWith(node);
-		target["outerHTML"] = node.outerHTML;
-		node.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
+		normalizeScriptTags(node);
+		target.replaceWith(node);
+		target.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
 	});
 }
 

@@ -10,6 +10,11 @@ public interface IDriver {
     IRxResponseBuilder With(HttpContext context);
 }
 
+public enum FragmentSwapStrategyType {
+    Replace = 0,
+    Morph = 1
+}
+
 public static class DriverService {
     public static void AddRxDriver(this IServiceCollection services) {
         services.AddScoped<IDriver, Driver>();
@@ -39,7 +44,10 @@ public interface IRxResponseBuilder {
     IRxResponseBuilder AddFragment<TComponent>()
     where TComponent : IComponent;
 
-    Task<IResult> Render();
+    Task<IResult> Render(
+        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace,
+        bool ignoreActiveElementValueOnMorph = false
+    );
 }
 
 file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRenderer, ILogger logger) : IRxResponseBuilder {
@@ -102,7 +110,10 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         return this;
     }
 
-    public async Task<IResult> Render() {
+    public async Task<IResult> Render(
+        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace, 
+        bool ignoreActiveElementValueOnMorph = false
+    ) {
         CheckRenderingStatus();
         if (rootComponent is not null) {
             return HandlePageRequest();
@@ -118,7 +129,13 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
             }
             return TypedResults.NoContent();
         }
-        context.Response.Headers.Append("fx-swap", "replace");
+        var swapStrategy = fragmentSwapStrategy == FragmentSwapStrategyType.Replace
+            ? "replace"
+            : "morph";
+        context.Response.Headers.Append("fx-swap", swapStrategy);
+        if (fragmentSwapStrategy == FragmentSwapStrategyType.Morph && ignoreActiveElementValueOnMorph) {
+            context.Response.Headers.Append("fx-morph-ignore-active", true.ToString());
+        }
         await Task.WhenAll(renderTasks);
         return Results.Content(content.ToString(), "text/html");
     }
