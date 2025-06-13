@@ -141,41 +141,45 @@ function duplicateScript(script) {
     return newScript;
 }
 
-function morphFragments(cfg) {
-	const parser = new DOMParser();
-	const doc = parser.parseFromString(cfg.text, 'text/html');
-	//morph fragments
-	doc.body.childNodes.forEach(node => {
-		if (node.nodeType !== Node.ELEMENT_NODE) {
-			return;
-		}
-		var target = document.getElementById(node.id);
-		if (target === null) {
-			return;
-		}
-		const ignoreActive = cfg.response.headers.get("fx-morph-ignore-active") === "True";
-		Idiomorph.morph(target, node, { morphStyle: "outerHTML", ignoreActiveValue: ignoreActive }).forEach(n => {
-			normalizeScriptTags(n);
-			n.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
-		});
-	});
-}
-
-function replaceFragments(cfg) {
+function swapFragments(cfg) {
+	const swap = cfg.response.headers.get("fx-swap");
+	if (!swap) {
+		console.error('Expected a "fx-swap" header object.');
+		return;
+	}
+	const swapStrategyArray = JSON.parse(swap);
 	const parser = new DOMParser();
 	const doc = parser.parseFromString('<body><template>' + cfg.text + '</template></body>', 'text/html');
-	console.log(doc);
 	const template = doc.body.querySelector('template').content;
-	//replace fragments
 	const fragments = Array.from(template.childNodes);
 	fragments.forEach(node => {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			return;
 		}
-		var target = document.getElementById(node.id);
-		if (target === null) {
+		//adjacent element swap
+		if (node instanceof HTMLTemplateElement) {
 			return;
 		}
+		//swap or morph
+		var target = document.getElementById(node.id);
+		if (target === null) {
+			console.error(`Expected a DOM element with id ${node.id}.`);
+			return;
+		}
+		var swapStrategy = swapStrategyArray.find(s => s.target === target.id);
+		if (!swapStrategy) {
+			console.error(`Expected a swap strategy item with id ${target.id}.`);
+			return;
+		}
+		if (swapStrategy.strategy === 'morph') {
+			const ignoreActive = cfg.response.headers.get("fx-morph-ignore-active") === "True";
+			Idiomorph.morph(target, node, { morphStyle: "outerHTML", ignoreActiveValue: ignoreActive }).forEach(n => {
+				normalizeScriptTags(n);
+				n.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
+			});
+			return;
+		}
+		//replace
 		normalizeScriptTags(node);
 		target.replaceWith(node);
 		target.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
@@ -207,24 +211,10 @@ document.addEventListener("fx:after", evt => {
 		window.location.assign(redirect);
 		return;
 	}
-	//swap processing
-	// const target = cfg.response.headers.get("fx-target");
-	// if (target) {
-	// 	var ele = document.querySelector(val);
-	// 	if (!ele) {
-	// 		console.error(`The target ${target} is not an element.`);
-	// 		return;
-	// 	}
-	// 	cfg.target = ele;
-	// }
-	const swap = cfg.response.headers.get("fx-swap");
-	if (swap === "replace") {
-		cfg.swap = (cfg) => replaceFragments(cfg);
-		return;
-	}
-	if (swap === "morph") {
-		cfg.swap = (cfg) => morphFragments(cfg);
-		return;
-	}
+	cfg.swap = (cfg) => swapFragments(cfg);
+});
+
+document.addEventListener("fx:error", evt => {
+	console.error(evt);
 });
 

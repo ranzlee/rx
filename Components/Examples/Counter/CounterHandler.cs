@@ -7,9 +7,7 @@ public class CounterHandler : IRequestHandler {
 
     public void MapRoutes(IEndpointRouteBuilder router) {
         router.MapGet("/examples/counter", Get).AllowAnonymous();
-
         router.MapPost("/examples/counter/decrement", DecrementCounter).AllowAnonymous();
-
         router.MapPost("/examples/counter/increment", IncrementCounter).AllowAnonymous();
     }
 
@@ -36,9 +34,9 @@ public class CounterHandler : IRequestHandler {
         validationContext.ValidationResult = await validator.ValidateAsync(model);
         return await rxDriver
             .With(context)
-            .AddFragment<CounterValue, CounterModel>(model)
-            .AddFragment<CounterError, CounterModel>(model)
-            .Render(FragmentSwapStrategyType.Morph);
+            .AddFragment<CounterValue, CounterModel>(model, "counter-value", FragmentSwapStrategyType.Replace)
+            .AddFragment<CounterError, CounterModel>(model, "counter-error", FragmentSwapStrategyType.Morph)
+            .Render();
     }
 
     public static async Task<IResult> IncrementCounter(
@@ -53,8 +51,8 @@ public class CounterHandler : IRequestHandler {
         validationContext.ValidationResult = await validator.ValidateAsync(model);
         return await rxDriver
             .With(context)
-            .AddFragment<CounterValue, CounterModel>(model)
-            .AddFragment<CounterError, CounterModel>(model)
-            .Render(FragmentSwapStrategyType.Morph, true);
+            .AddFragment<CounterValue, CounterModel>(model, "counter-value", FragmentSwapStrategyType.Morph)
+            .AddFragment<CounterError, CounterModel>(model, "counter-error", FragmentSwapStrategyType.Replace)
+            .Render(true);
     }
 }

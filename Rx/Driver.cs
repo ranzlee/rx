@@ -1,5 +1,5 @@
 using System.Text;
-
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -36,19 +36,23 @@ public interface IRxResponseBuilder {
     where TRoot : IRootComponent
     where TComponent : IComponent;
 
-    IRxResponseBuilder SetTarget(string targetElementId);
+    IRxResponseBuilder AddFragment<TComponent, TModel>(
+        TModel model,
+        string targetId,
+        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+    ) where TComponent : IComponent, IComponentModel<TModel>;
 
-    IRxResponseBuilder AddFragment<TComponent, TModel>(TModel model)
-    where TComponent : IComponent, IComponentModel<TModel>;
-
-    IRxResponseBuilder AddFragment<TComponent>()
-    where TComponent : IComponent;
+    IRxResponseBuilder AddFragment<TComponent>(
+        string targetId,
+        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+    ) where TComponent : IComponent;
 
     Task<IResult> Render(
-        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace,
         bool ignoreActiveElementValueOnMorph = false
     );
 }
+
+file record SwapStrategy(string Target, string Strategy);
 
 file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRenderer, ILogger logger) : IRxResponseBuilder {
     private bool isRendering = false;
@@ -56,7 +60,8 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
     private readonly Dictionary<string, object?> rootParameters = [];
     private readonly StringBuilder content = new();
     private readonly List<Task> renderTasks = [];
-    private string target = null!;
+    private readonly List<SwapStrategy> swapStrategies = [];
+    private static readonly JsonSerializerOptions serializerSettings = new(JsonSerializerDefaults.Web);
 
     public IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model)
     where TRoot : IRootComponent
@@ -80,7 +85,11 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         rootParameters.Add(nameof(IRootComponent.MainContent), typeof(TComponent));
         return this;
     }
-    public IRxResponseBuilder AddFragment<TComponent, TModel>(TModel model) where TComponent : IComponent, IComponentModel<TModel> {
+    public IRxResponseBuilder AddFragment<TComponent, TModel>(
+        TModel model,
+        string targetId,
+        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+    ) where TComponent : IComponent, IComponentModel<TModel> {
         CheckRenderingStatus();
         CheckPageRenderStatus();
         var parameters = ParameterView.FromDictionary(new Dictionary<string, object?> {
@@ -90,28 +99,25 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
             var output = await htmlRenderer.RenderComponentAsync<TComponent>(parameters);
             content.Append(output.ToHtmlString());
         }));
+        AddSwapStrategy(targetId, fragmentSwapStrategy);
         return this;
     }
 
-    public IRxResponseBuilder AddFragment<TComponent>() where TComponent : IComponent {
+    public IRxResponseBuilder AddFragment<TComponent>(
+        string targetId,
+        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+    ) where TComponent : IComponent {
         CheckRenderingStatus();
         CheckPageRenderStatus();
         renderTasks.Add(htmlRenderer.Dispatcher.InvokeAsync(async () => {
             var output = await htmlRenderer.RenderComponentAsync<TComponent>();
             content.Append(output.ToHtmlString());
         }));
-        return this;
-    }
-
-    public IRxResponseBuilder SetTarget(string targetElementId) {
-        CheckRenderingStatus();
-        CheckPageRenderStatus();
-        target = $"#{targetElementId.TrimStart('#')}";
+        AddSwapStrategy(targetId, fragmentSwapStrategy);
         return this;
     }
 
     public async Task<IResult> Render(
-        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace, 
         bool ignoreActiveElementValueOnMorph = false
     ) {
         CheckRenderingStatus();
@@ -124,20 +130,23 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         isRendering = true;
         if (renderTasks.Count == 0) {
             if (context.Request.Method.Equals("delete", StringComparison.CurrentCultureIgnoreCase)) {
-                ProcessTarget();
                 return TypedResults.Ok();
             }
             return TypedResults.NoContent();
         }
+        if (ignoreActiveElementValueOnMorph) {
+            context.Response.Headers.Append("fx-morph-ignore-active", true.ToString());
+        }
+        context.Response.Headers.Append("fx-swap", JsonSerializer.Serialize(swapStrategies, serializerSettings));
+        await Task.WhenAll(renderTasks);
+        return Results.Content(content.ToString(), "text/html");
+    }
+
+    private void AddSwapStrategy(string targetId, FragmentSwapStrategyType fragmentSwapStrategy) {
         var swapStrategy = fragmentSwapStrategy == FragmentSwapStrategyType.Replace
             ? "replace"
             : "morph";
-        context.Response.Headers.Append("fx-swap", swapStrategy);
-        if (fragmentSwapStrategy == FragmentSwapStrategyType.Morph && ignoreActiveElementValueOnMorph) {
-            context.Response.Headers.Append("fx-morph-ignore-active", true.ToString());
-        }
-        await Task.WhenAll(renderTasks);
-        return Results.Content(content.ToString(), "text/html");
+        swapStrategies.Add(new(targetId, swapStrategy));
     }
 
     private RazorComponentResult HandlePageRequest() {
@@ -145,13 +154,6 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
             throw new InvalidOperationException("AddPage was attempted on a fetch request.");
         }
         return new RazorComponentResult(rootComponent!, rootParameters);
-    }
-
-    private void ProcessTarget() {
-        if (string.IsNullOrWhiteSpace(target)) {
-            throw new InvalidOperationException("SetTarget must be called to identify a swap target.");
-        }
-        context.Response.Headers.Append("fx-target", target);
     }
 
     private void CheckRenderingStatus() {
