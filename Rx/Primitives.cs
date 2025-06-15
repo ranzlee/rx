@@ -13,8 +13,10 @@ public interface IRequestHandler {
 /// Interface for a component that represents a page layout.
 /// </summary>
 public interface IRootComponent {
+    public Type? HeadContent { get; set; }
     public Type MainContent { get; set; }
     public Dictionary<string, object?> MainContentParameters { get; set; }
+    public string? Title { get; set; }
 }
 
 /// <summary>

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Hx.Rx;
+using Hx.Components.Layout;
 
 namespace Hx.Components.Auth;
 
@@ -15,19 +16,9 @@ namespace Hx.Components.Auth;
 public class AuthHandler : IRequestHandler {
 
     public void MapRoutes(IEndpointRouteBuilder router) {
-        router.MapPost("/auth/sign-in", SignIn)
-            .AllowAnonymous();
-
-        // Post-authentication processing to sync the app state with the cookie
-        // and perhaps request the "ReturnUrl" if the user was attempting to reach 
-        // protected route that triggered the authentication.
-        router.MapGet("/auth/complete", SignInComplete)
-            .AllowAnonymous()
-            .WithRxRootComponent();
-
-        router.MapPost("/auth/sign-out", SignOut)
-            .RequireAuthorization();
-
+        router.MapPost("/auth/sign-in", SignIn).AllowAnonymous();
+        router.MapGet("/auth/complete", SignInComplete).AllowAnonymous();
+        router.MapPost("/auth/sign-out", SignOut).RequireAuthorization();
     }
 
     // Example sign in - must be replaced with OIDC identity provider
@@ -44,8 +35,13 @@ public class AuthHandler : IRequestHandler {
     }
 
     // Signin complete - provides the client the opportunity to request a route and sync cookie state
-    public static IResult SignInComplete(HttpResponse response) {
-        return response.RenderComponent<Authenticated>();
+    public static async Task<IResult> SignInComplete(
+        HttpContext context,
+        IRxDriver rxDriver) {
+        return await rxDriver
+            .With(context)
+            .AddPage<App, AuthenticatedHead, Authenticated>()
+            .Render();
     }
 
     // Sign out

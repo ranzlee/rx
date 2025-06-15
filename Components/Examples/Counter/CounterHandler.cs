@@ -6,19 +6,19 @@ namespace Hx.Components.Examples.Counter;
 public class CounterHandler : IRequestHandler {
 
     public void MapRoutes(IEndpointRouteBuilder router) {
-        router.MapGet("/examples/counter", Get).AllowAnonymous();
-        router.MapPost("/examples/counter/decrement", DecrementCounter).AllowAnonymous();
-        router.MapPost("/examples/counter/increment", IncrementCounter).AllowAnonymous();
+        router.MapGet("/examples/counter", Get).RequireAuthorization();
+        router.MapPost("/examples/counter/decrement", DecrementCounter).RequireAuthorization();
+        router.MapPost("/examples/counter/increment", IncrementCounter).RequireAuthorization();
     }
 
     public static async Task<IResult> Get(
         HttpContext context,
-        IDriver rxDriver,
+        IRxDriver rxDriver,
         ILogger<CounterHandler> logger
     ) {
         return await rxDriver
             .With(context)
-            .AddPage<App, CounterPage>()
+            .AddPage<App, CounterHead, CounterPage>("The Obligatory Counter")
             .Render();
     }
 
@@ -27,7 +27,7 @@ public class CounterHandler : IRequestHandler {
         CounterModel model,
         CounterValidator validator,
         ValidationContext validationContext,
-        IDriver rxDriver,
+        IRxDriver rxDriver,
         ILogger<CounterHandler> logger
     ) {
         model = model with { Count = model.Count - 1 };
@@ -44,7 +44,7 @@ public class CounterHandler : IRequestHandler {
         CounterModel model,
         CounterValidator validator,
         ValidationContext validationContext,
-        IDriver rxDriver,
+        IRxDriver rxDriver,
         ILogger<CounterHandler> logger
     ) {
         model = model with { Count = model.Count + 1 };

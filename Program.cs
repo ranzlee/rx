@@ -1,7 +1,4 @@
 using System.Reflection;
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Server;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.ResponseCompression;
 using FluentValidation;
 using Hx.Components.Error;
@@ -22,17 +19,16 @@ var services = builder.Services;
 // Add the scoped script helper for cache busting
 services.AddScriptHelper();
 
-// Add razor components for templating
-services.AddRazorComponents();
+services.AddAntiforgery();
+
+services.AddHttpContextAccessor();
 
 // Add fragment rendering support
-services.AddScoped<HtmlRenderer>();
-//services.AddScoped<FragmentRenderer>();
 services.AddRxDriver();
 
 // Add services for <AuthorizeView>
-services.AddCascadingAuthenticationState();
-services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+//services.AddCascadingAuthenticationState();
+//services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 
 // Add response compression - remove if using server level compression (e.g., nginx)
 if (!builder.Environment.IsDevelopment()) {
@@ -47,14 +43,8 @@ if (!builder.Environment.IsDevelopment()) {
     });
 }
 
-// Add HTTP context accessor
-services.AddHttpContextAccessor();
-
 // Add API standardized problem details
 services.AddProblemDetails();
-
-// Add custom options for deserializing JSON from FORM data
-services.ConfigureOptions<HxJsonOptions>();
 
 // Add HxTriggers for sending event triggers from the server to client 
 services.AddHxTriggers();

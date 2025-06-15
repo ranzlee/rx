@@ -11,12 +11,12 @@ public class ExamplesHandler : IRequestHandler {
 
     public static async Task<IResult> Get(
         HttpContext context,
-        IDriver rxDriver,
+        IRxDriver rxDriver,
         ILogger<ExamplesPage> logger
     ) {
         return await rxDriver
             .With(context)
-            .AddPage<App, ExamplesPage>()
+            .AddPage<App, ExamplesPage>("Examples")
             .Render();
     }
 }

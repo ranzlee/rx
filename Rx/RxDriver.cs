@@ -2,38 +2,45 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Hx.Rx;
-
-public interface IDriver {
-    IRxResponseBuilder With(HttpContext context);
-}
 
 public enum FragmentSwapStrategyType {
     Replace = 0,
     Morph = 1
 }
 
-public static class DriverService {
+public static class RxDriverServices {
     public static void AddRxDriver(this IServiceCollection services) {
-        services.AddScoped<IDriver, Driver>();
+        if (!services.Any(x => x.ServiceType == typeof(HtmlRenderer))) {
+            services.AddScoped<HtmlRenderer>();
+        }
+        services.AddScoped<IRxDriver, RxDriver>();
+        services.ConfigureOptions<HxJsonOptions>();
     }
 }
 
-file sealed class Driver(HtmlRenderer htmlRenderer, ILogger<Driver> logger) : IDriver {
-    public IRxResponseBuilder With(HttpContext context) {
-        return new RxResponseBuilder(context, htmlRenderer, logger);
-    }
+public interface IRxDriver : IAsyncDisposable, IDisposable {
+    IRxResponseBuilder With(HttpContext context);
 }
 
 public interface IRxResponseBuilder {
-    IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model)
+    IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model, string? title = null)
     where TRoot : IRootComponent
     where TComponent : IComponent, IComponentModel<TModel>;
 
-    IRxResponseBuilder AddPage<TRoot, TComponent>()
+    IRxResponseBuilder AddPage<TRoot, TComponent>(string? title = null)
     where TRoot : IRootComponent
+    where TComponent : IComponent;
+
+    IRxResponseBuilder AddPage<TRoot, THead, TComponent, TModel>(TModel model, string? title = null)
+    where TRoot : IRootComponent
+    where THead : IComponent
+    where TComponent : IComponent, IComponentModel<TModel>;
+
+    IRxResponseBuilder AddPage<TRoot, THead, TComponent>(string? title = null)
+    where TRoot : IRootComponent
+    where THead : IComponent
     where TComponent : IComponent;
 
     IRxResponseBuilder AddFragment<TComponent, TModel>(
@@ -52,39 +59,91 @@ public interface IRxResponseBuilder {
     );
 }
 
+file sealed class RxDriver(HtmlRenderer htmlRenderer, ILogger<RxDriver> logger) : IRxDriver {
+    public IRxResponseBuilder With(HttpContext context) {
+        return new RxResponseBuilder(context, htmlRenderer, logger);
+    }
+
+    public ValueTask DisposeAsync() {
+        logger.LogDebug("Async Disposed");
+        return htmlRenderer.DisposeAsync();
+    }
+
+    public void Dispose() {
+        logger.LogDebug("Disposed");
+        htmlRenderer.Dispose();
+    }
+}
+
 file record SwapStrategy(string Target, string Strategy);
 
-file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRenderer, ILogger logger) : IRxResponseBuilder {
+file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRenderer, ILogger logger) : IRxResponseBuilder  {
     private bool isRendering = false;
     private Type? rootComponent = null;
-    private readonly Dictionary<string, object?> rootParameters = [];
+    private ParameterView rootParameters;
     private readonly StringBuilder content = new();
     private readonly List<Task> renderTasks = [];
     private readonly List<SwapStrategy> swapStrategies = [];
     private static readonly JsonSerializerOptions serializerSettings = new(JsonSerializerDefaults.Web);
 
-    public IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model)
+    public IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model, string? title = null)
     where TRoot : IRootComponent
     where TComponent : IComponent, IComponentModel<TModel> {
         CheckRenderingStatus();
         CheckPageRenderStatus();
         rootComponent = typeof(TRoot);
-        rootParameters.Add(nameof(IRootComponent.MainContent), typeof(TComponent));
-        rootParameters.Add(nameof(IRootComponent.MainContentParameters), new Dictionary<string, object?> {
-            { nameof(IComponentModel<TModel>.Model), model }
+        rootParameters = ParameterView.FromDictionary(new Dictionary<string, object?> {
+            { nameof(IRootComponent.MainContent), typeof(TComponent) },
+            { nameof(IComponentModel<TModel>.Model), model },
+            { nameof(IRootComponent.Title), title },
         });
         return this;
     }
 
-    public IRxResponseBuilder AddPage<TRoot, TComponent>()
+    public IRxResponseBuilder AddPage<TRoot, TComponent>(string? title = null)
     where TRoot : IRootComponent
     where TComponent : IComponent {
         CheckRenderingStatus();
         CheckPageRenderStatus();
         rootComponent = typeof(TRoot);
-        rootParameters.Add(nameof(IRootComponent.MainContent), typeof(TComponent));
+        rootParameters = ParameterView.FromDictionary(new Dictionary<string, object?> {
+            { nameof(IRootComponent.MainContent), typeof(TComponent) },
+            { nameof(IRootComponent.Title), title },
+        });
         return this;
     }
+
+    public IRxResponseBuilder AddPage<TRoot, THead, TComponent, TModel>(TModel model, string? title = null)
+    where TRoot : IRootComponent
+    where THead : IComponent
+    where TComponent : IComponent, IComponentModel<TModel> {
+        CheckRenderingStatus();
+        CheckPageRenderStatus();
+        rootComponent = typeof(TRoot);
+        rootParameters = ParameterView.FromDictionary(new Dictionary<string, object?> {
+            { nameof(IRootComponent.MainContent), typeof(TComponent) },
+            { nameof(IRootComponent.HeadContent), typeof(THead) },
+            { nameof(IComponentModel<TModel>.Model), model },
+            { nameof(IRootComponent.Title), title },
+        });
+        return this;
+    }
+
+    public IRxResponseBuilder AddPage<TRoot, THead, TComponent>(string? title = null)
+    where TRoot : IRootComponent
+    where THead : IComponent
+    where TComponent : IComponent {
+        CheckRenderingStatus();
+        CheckPageRenderStatus();
+        rootComponent = typeof(TRoot);
+        rootParameters = ParameterView.FromDictionary(new Dictionary<string, object?> {
+            { nameof(IRootComponent.MainContent), typeof(TComponent) },
+            { nameof(IRootComponent.HeadContent), typeof(THead) },
+            { nameof(IRootComponent.Title), title },
+        });
+        return this;
+    }
+
     public IRxResponseBuilder AddFragment<TComponent, TModel>(
         TModel model,
         string targetId,
@@ -122,16 +181,20 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
     ) {
         CheckRenderingStatus();
         if (rootComponent is not null) {
-            return HandlePageRequest();
+            logger.LogDebug("Rendering Page");
+            return await HandlePageRequest();
         }
         if (!context.Request.Headers.ContainsKey("fx-request")) {
+            logger.LogDebug("No Content Response");
             return TypedResults.NotFound();
         }
         isRendering = true;
         if (renderTasks.Count == 0) {
             if (context.Request.Method.Equals("delete", StringComparison.CurrentCultureIgnoreCase)) {
+                logger.LogDebug("OK Response for DELETE Request");
                 return TypedResults.Ok();
             }
+            logger.LogDebug("No Content Response");
             return TypedResults.NoContent();
         }
         if (ignoreActiveElementValueOnMorph) {
@@ -139,6 +202,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         }
         context.Response.Headers.Append("fx-swap", JsonSerializer.Serialize(swapStrategies, serializerSettings));
         await Task.WhenAll(renderTasks);
+        logger.LogDebug("Fragment Response");
         return Results.Content(content.ToString(), "text/html");
     }
 
@@ -149,11 +213,17 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         swapStrategies.Add(new(targetId, swapStrategy));
     }
 
-    private RazorComponentResult HandlePageRequest() {
+    private async Task<IResult> HandlePageRequest() {
         if (context.Request.Headers.ContainsKey("fx-request")) {
             throw new InvalidOperationException("AddPage was attempted on a fetch request.");
         }
-        return new RazorComponentResult(rootComponent!, rootParameters);
+        string output = default!;
+        await htmlRenderer.Dispatcher.InvokeAsync(async () => {
+            var root = await htmlRenderer.RenderComponentAsync(rootComponent!, rootParameters);
+            output = root.ToHtmlString();
+        });
+        return Results.Content(output, "text/html");
+        
     }
 
     private void CheckRenderingStatus() {
@@ -164,7 +234,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
 
     private void CheckPageRenderStatus() {
         if (rootComponent is not null) {
-            throw new InvalidOperationException("Driver is set to render a page. No other operations are allowed and Render must be called.");
+            throw new InvalidOperationException("RxDriver is set to render a page. No other operations are allowed and Render must be called.");
         }
     }
 }

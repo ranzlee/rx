@@ -4,10 +4,10 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-  <meta name="color-scheme" content="light dark" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="This is the Hx application.">
   @* htmx config *@
   <meta name="htmx-config" content='{ 
@@ -30,7 +30,13 @@
   <script src="/js/fixi.js?@(ScriptHelper.GetCacheBuster())" defer></script>
   <script src="/js/htmx.min.js?@(ScriptHelper.GetCacheBuster())" defer></script>
   <script src="/js/json-enc.min.js?@(ScriptHelper.GetCacheBuster())" defer></script>
-  <HeadOutlet />
+  @* <HeadOutlet /> *@
+  @if(HeadContent is not null) {
+    <DynamicComponent Type="@(HeadContent)" />
+  }
+  @if(!string.IsNullOrWhiteSpace(Title)) {
+    <title>@(Title)</title>
+  }
 </head>
 
 @* hx-ext json-enc converts request form data into json *@
@@ -151,6 +157,8 @@
 @code {
   [Inject] public IHttpContextAccessor HttpContextAccessor { get; set; } = null!;
   [Inject] public IScriptHelper ScriptHelper { get; set; } = null!;
+  [Parameter] public Type? HeadContent { get; set; }
   [Parameter] public Type MainContent { get; set; } = null!;
   [Parameter] public Dictionary<string, object?> MainContentParameters { get; set; } = [];
+  [Parameter] public string? Title { get; set; }
 }

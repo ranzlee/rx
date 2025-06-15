@@ -11,12 +11,12 @@ public class HomeHandler : IRequestHandler {
 
     public static async Task<IResult> Get(
         HttpContext context,
-        IDriver rxDriver,
+        IRxDriver rxDriver,
         ILogger<HomeHandler> logger
     ) {
         return await rxDriver
             .With(context)
-            .AddPage<App, HomePage>()
+            .AddPage<App, HomePage>("Home")
             .Render();
     }
 }
