@@ -30,7 +30,6 @@
   <script src="/js/fixi.js?@(ScriptHelper.GetCacheBuster())" defer></script>
   <script src="/js/htmx.min.js?@(ScriptHelper.GetCacheBuster())" defer></script>
   <script src="/js/json-enc.min.js?@(ScriptHelper.GetCacheBuster())" defer></script>
-  @* <HeadOutlet /> *@
   @if(HeadContent is not null) {
     <DynamicComponent Type="@(HeadContent)" />
   }
@@ -42,8 +41,6 @@
 @* hx-ext json-enc converts request form data into json *@
 <body hx-ext="json-enc">
   <div id="aria-live-region" aria-live="polite" class="sr-only"></div>
-  <Toast Id="success-toast" />
-  <Toast Id="error-toast" IsError="@(true)" />
   <div class="drawer">
     <input id="site-drawer" type="checkbox" class="drawer-toggle" aria-label="menu-toggle-state">
     <div class="drawer-content flex flex-col">
@@ -85,7 +82,7 @@
                 </div>
                 <div class="flex items-center gap-x-3">
                   <a href="/" class="rounded-3xl p-3" aria-label="Home"
-                    aria-current="@(HttpContextAccessor.HttpContext!.GetCurrentRoute() == "/" ? "page" : false)">
+                    aria-current="@(HttpContextAccessor.HttpContext!.Request.Path.ToString().ToLower() == "/" ? "page" : false)">
                     <h1 class="text-3xl font-semibold text-primary">
                       Hx
                     </h1>

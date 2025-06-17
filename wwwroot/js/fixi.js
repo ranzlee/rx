@@ -22,7 +22,7 @@
 				action:attr(elt, "fx-action"),
 				method:attr(elt, "fx-method", "GET").toUpperCase(),
 				target:null,
-				swap:null,
+				merge:null,
 				body,
 				drop:reqs.size,
 				headers:{"FX-Request":"true"},
@@ -58,21 +58,21 @@
 				reqs.delete(cfg)
 				send(elt, "finally", {cfg})
 			}
-			let doSwap = ()=>{
-				if (cfg.swap instanceof Function)
-					return cfg.swap(cfg)
-				else if (/(before|after)(begin|end)/.test(cfg.swap))
-					cfg.target.insertAdjacentHTML(cfg.swap, cfg.text)
-				else if(cfg.swap in cfg.target)
-					cfg.target[cfg.swap] = cfg.text
-				else throw cfg.swap
+			let doMerge = ()=>{
+				if (cfg.merge instanceof Function)
+					return cfg.merge(cfg)
+				else if (/(before|after)(begin|end)/.test(cfg.merge))
+					cfg.target.insertAdjacentHTML(cfg.merge, cfg.text)
+				else if(cfg.merge in cfg.target)
+					cfg.target[cfg.merge] = cfg.text
+				else throw cfg.merge
 			}
 			if (cfg.transition)
-				await cfg.transition(doSwap).finished
+				await cfg.transition(doMerge).finished
 			else
-				await doSwap()
-			send(elt, "swapped", {cfg})
-			if (!document.contains(elt)) send(document, "swapped", {cfg})
+				await doMerge()
+			send(elt, "merged", {cfg})
+			if (!document.contains(elt)) send(document, "merged", {cfg})
 		}
 		elt.__fixi.evt = attr(elt, "fx-trigger", elt.matches("form") ? "submit" : elt.matches("input:not([type=button]),select,textarea") ? "change" : "click")
 		elt.addEventListener(elt.__fixi.evt, elt.__fixi, options)
@@ -141,13 +141,13 @@ function duplicateScript(script) {
     return newScript;
 }
 
-function swapFragments(cfg) {
-	const swap = cfg.response.headers.get("fx-swap");
-	if (!swap) {
-		console.error('Expected a "fx-swap" header object.');
+function mergeFragments(cfg) {
+	const merge = cfg.response.headers.get("fx-merge");
+	if (!merge) {
+		console.error('Expected a "fx-merge" header object.');
 		return;
 	}
-	const swapStrategyArray = JSON.parse(swap);
+	const mergeStrategyArray = JSON.parse(merge);
 	const parser = new DOMParser();
 	const doc = parser.parseFromString('<body><template>' + cfg.text + '</template></body>', 'text/html');
 	const template = doc.body.querySelector('template').content;
@@ -156,7 +156,7 @@ function swapFragments(cfg) {
 		if (node.nodeType !== Node.ELEMENT_NODE) {
 			return;
 		}
-		//adjacent element swap
+		//adjacent element merge
 		if (node instanceof HTMLTemplateElement) {
 			return;
 		}
@@ -166,12 +166,13 @@ function swapFragments(cfg) {
 			console.error(`Expected a DOM element with id ${node.id}.`);
 			return;
 		}
-		var swapStrategy = swapStrategyArray.find(s => s.target === target.id);
-		if (!swapStrategy) {
-			console.error(`Expected a swap strategy item with id ${target.id}.`);
+		var mergeStrategy = mergeStrategyArray.find(s => s.target === target.id);
+		if (!mergeStrategy) {
+			console.error(`Expected a merge strategy item with id ${target.id}.`);
 			return;
 		}
-		if (swapStrategy.strategy === 'morph') {
+		//morph
+		if (mergeStrategy.strategy === 'morph') {
 			const ignoreActive = cfg.response.headers.get("fx-morph-ignore-active") === "True";
 			Idiomorph.morph(target, node, { morphStyle: "outerHTML", ignoreActiveValue: ignoreActive }).forEach(n => {
 				normalizeScriptTags(n);
@@ -179,7 +180,7 @@ function swapFragments(cfg) {
 			});
 			return;
 		}
-		//replace
+		//swap
 		normalizeScriptTags(node);
 		target.replaceWith(node);
 		target.dispatchEvent(new CustomEvent("fx:process", { bubbles: true }));
@@ -193,6 +194,29 @@ document.addEventListener("fx:config", evt => {
 
 document.addEventListener("fx:after", evt => {
 	const cfg = evt.detail.cfg;
+	//check for client redirect
+	const redirect = cfg.response.headers.get("fx-redirect");
+	if (redirect) {
+		evt.preventDefault();
+		window.location.assign(redirect);
+		return;
+	}
+	//redirect and error response processing
+	if (cfg.response.status >= 300 && cfg.response.status < 400) {
+		evt.preventDefault();
+		console.warn("A client redirect was issued on a fetch request. Please set the fx-redirect header to redirect async requests to the appropriate route.")
+		return;
+	}
+	if (cfg.response.status >= 400 && cfg.response.status < 500) {
+		evt.preventDefault();
+		console.error("A client error was issued on a fetch request. Please set the fx-redirect header to redirect async requests to an appropriate error route.")
+		return;
+	}
+	if (cfg.response.status >= 500) {
+		evt.preventDefault();
+		console.error("A server error was issued on a fetch request. Please set the fx-redirect header to redirect async requests to an appropriate error route..")
+		return;
+	}
 	//custom behaviors
 	if (cfg.response.status === 204) {
 		// don't swap on no-content
@@ -204,14 +228,7 @@ document.addEventListener("fx:after", evt => {
 		evt.preventDefault();
 		return;
 	}
-	//check for client redirect
-	const redirect = cfg.response.headers.get("fx-redirect");
-	if (redirect) {
-		evt.preventDefault();
-		window.location.assign(redirect);
-		return;
-	}
-	cfg.swap = (cfg) => swapFragments(cfg);
+	cfg.merge = (cfg) => mergeFragments(cfg);
 });
 
 document.addEventListener("fx:error", evt => {

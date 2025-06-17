@@ -26,23 +26,6 @@ services.AddHttpContextAccessor();
 // Add fragment rendering support
 services.AddRxDriver();
 
-// Add services for <AuthorizeView>
-//services.AddCascadingAuthenticationState();
-//services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
-
-// Add response compression - remove if using server level compression (e.g., nginx)
-if (!builder.Environment.IsDevelopment()) {
-    services.AddResponseCompression(options => {
-        options.EnableForHttps = true;
-        options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat([
-            "application/javascript",
-            "application/json",
-            "text/css",
-            "text/html"
-        ]);
-    });
-}
-
 // Add API standardized problem details
 services.AddProblemDetails();
 
@@ -65,9 +48,9 @@ if (!app.Environment.IsDevelopment()) {
     // Use the default exception handler
     app.UseExceptionHandler(handler => {
         handler.Run(context => {
-            // The razorx.js error handler will handle async error redirects to /error
-            if (!context.Request.IsHxRequest()) {
-                // Page requests will redirect to /error
+            if (context.Request.IsFxRequest()) {
+                context.Response.FxRedirect("/error?code=500");
+            } else {
                 context.Response.Redirect("/error?code=500");
             }
             return Task.CompletedTask;
@@ -75,8 +58,6 @@ if (!app.Environment.IsDevelopment()) {
     });
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
-    // Use compression - applied early for static file compression
-    app.UseResponseCompression();
 }
 
 // Use HTTPS only
@@ -100,8 +81,27 @@ app.UseAntiforgery();
 // Use cookie for antiforgery token - this is custom middleware to support using cookies to transport the antiforgery token
 app.UseAntiforgeryCookie();
 
-// Use App router
-app.UseRxRouter<App, ErrorPage>();
+// Setup router group
+var router = app.MapGroup(string.Empty);
+
+// Map fallback to error page
+router.MapFallback(static async (HttpContext context, IRxDriver rxDriver) => {
+    return await rxDriver
+        .With(context)
+        .AddPage<App, ErrorPage>("Error")
+        .Render();
+});
+
+// Inspect for IRequestHandlers 
+var routeGroups = Assembly.GetExecutingAssembly().DefinedTypes
+    .Where(type => type is { IsAbstract: false, IsInterface: false } && type.IsAssignableTo(typeof(IRequestHandler)))
+    .Select(type => Activator.CreateInstance(type) as IRequestHandler)
+    .ToArray();
+
+// Map routes for IRouteGroups found
+foreach (var routeGroup in routeGroups) {
+    routeGroup?.MapRoutes(router);
+}
 
 // Let's Go!
 app.Run();

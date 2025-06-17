@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace Hx.Rx;
 
-public enum FragmentSwapStrategyType {
-    Replace = 0,
+public enum FragmentMergeStrategyType {
+    Swap = 0,
     Morph = 1
 }
 
@@ -46,12 +46,12 @@ public interface IRxResponseBuilder {
     IRxResponseBuilder AddFragment<TComponent, TModel>(
         TModel model,
         string targetId,
-        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+        FragmentMergeStrategyType fragmentMergeStrategy = FragmentMergeStrategyType.Swap
     ) where TComponent : IComponent, IComponentModel<TModel>;
 
     IRxResponseBuilder AddFragment<TComponent>(
         string targetId,
-        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+        FragmentMergeStrategyType fragmentMergeStrategy = FragmentMergeStrategyType.Swap
     ) where TComponent : IComponent;
 
     Task<IResult> Render(
@@ -75,7 +75,7 @@ file sealed class RxDriver(HtmlRenderer htmlRenderer, ILogger<RxDriver> logger) 
     }
 }
 
-file record SwapStrategy(string Target, string Strategy);
+file record MergeStrategy(string Target, string Strategy);
 
 file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRenderer, ILogger logger) : IRxResponseBuilder  {
     private bool isRendering = false;
@@ -83,7 +83,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
     private ParameterView rootParameters;
     private readonly StringBuilder content = new();
     private readonly List<Task> renderTasks = [];
-    private readonly List<SwapStrategy> swapStrategies = [];
+    private readonly List<MergeStrategy> mergeStrategies = [];
     private static readonly JsonSerializerOptions serializerSettings = new(JsonSerializerDefaults.Web);
 
     public IRxResponseBuilder AddPage<TRoot, TComponent, TModel>(TModel model, string? title = null)
@@ -147,7 +147,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
     public IRxResponseBuilder AddFragment<TComponent, TModel>(
         TModel model,
         string targetId,
-        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+        FragmentMergeStrategyType fragmentMergeStrategy = FragmentMergeStrategyType.Swap
     ) where TComponent : IComponent, IComponentModel<TModel> {
         CheckRenderingStatus();
         CheckPageRenderStatus();
@@ -158,13 +158,13 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
             var output = await htmlRenderer.RenderComponentAsync<TComponent>(parameters);
             content.Append(output.ToHtmlString());
         }));
-        AddSwapStrategy(targetId, fragmentSwapStrategy);
+        AddMergeStrategy(targetId, fragmentMergeStrategy);
         return this;
     }
 
     public IRxResponseBuilder AddFragment<TComponent>(
         string targetId,
-        FragmentSwapStrategyType fragmentSwapStrategy = FragmentSwapStrategyType.Replace
+        FragmentMergeStrategyType fragmentMergeStrategy = FragmentMergeStrategyType.Swap
     ) where TComponent : IComponent {
         CheckRenderingStatus();
         CheckPageRenderStatus();
@@ -172,7 +172,7 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
             var output = await htmlRenderer.RenderComponentAsync<TComponent>();
             content.Append(output.ToHtmlString());
         }));
-        AddSwapStrategy(targetId, fragmentSwapStrategy);
+        AddMergeStrategy(targetId, fragmentMergeStrategy);
         return this;
     }
 
@@ -200,17 +200,17 @@ file sealed class RxResponseBuilder(HttpContext context, HtmlRenderer htmlRender
         if (ignoreActiveElementValueOnMorph) {
             context.Response.Headers.Append("fx-morph-ignore-active", true.ToString());
         }
-        context.Response.Headers.Append("fx-swap", JsonSerializer.Serialize(swapStrategies, serializerSettings));
+        context.Response.Headers.Append("fx-merge", JsonSerializer.Serialize(mergeStrategies, serializerSettings));
         await Task.WhenAll(renderTasks);
         logger.LogDebug("Fragment Response");
         return Results.Content(content.ToString(), "text/html");
     }
 
-    private void AddSwapStrategy(string targetId, FragmentSwapStrategyType fragmentSwapStrategy) {
-        var swapStrategy = fragmentSwapStrategy == FragmentSwapStrategyType.Replace
-            ? "replace"
+    private void AddMergeStrategy(string targetId, FragmentMergeStrategyType fragmentMergeStrategy) {
+        var mergeStrategy = fragmentMergeStrategy == FragmentMergeStrategyType.Swap
+            ? "swap"
             : "morph";
-        swapStrategies.Add(new(targetId, swapStrategy));
+        mergeStrategies.Add(new(targetId, mergeStrategy));
     }
 
     private async Task<IResult> HandlePageRequest() {

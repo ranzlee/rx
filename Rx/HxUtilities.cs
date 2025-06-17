@@ -65,9 +65,9 @@ public static class HxUtilities {
         response.Headers.Append("HX-Reswap", strategy);
     }
 
-    public static void FxSwap(this HttpResponse response, string strategy, ILogger? logger = default) {
-        logger?.LogInformation("FX-Swap {strategy}.", strategy);
-        response.Headers.Append("FX-Swap", strategy);
+    public static void FxMerge(this HttpResponse response, string strategy, ILogger? logger = default) {
+        logger?.LogInformation("FX-Merge {strategy}.", strategy);
+        response.Headers.Append("FX-Merge", strategy);
     }
 
     /// <summary>

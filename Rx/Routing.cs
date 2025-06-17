@@ -1,5 +1,7 @@
 using System.Net;
 using System.Reflection;
+using Hx.Components.Error;
+using Hx.Components.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http.Extensions;
 
@@ -39,10 +41,17 @@ public static class RoutingExtensions {
 
         DefaultRootComponent.Set<TRootComponent>();
 
+        // Setup router group
         var router = app.MapGroup(routePrefix);
-            //.WithRxRouteHandling()
-            //.WithRxErrorHandling<TRootComponent, TErrorPage>();
-
+        
+        // Map fallback to error page
+        router.MapFallback(static async (HttpContext context, IRxDriver rxDriver) => {
+            return await rxDriver
+                .With(context)
+                .AddPage<App, ErrorPage>("Error")
+                .Render();
+        });
+        
         // Inspect for IRouteGroups 
         var routeGroups = Assembly.GetExecutingAssembly().DefinedTypes
             .Where(type => type is { IsAbstract: false, IsInterface: false }
@@ -54,68 +63,6 @@ public static class RoutingExtensions {
         foreach (var routeGroup in routeGroups) {
             routeGroup?.MapRoutes(router);
         }
-    }
-
-    /// <summary>
-    /// Adds RazorComponent and htmx route handling to the route group.
-    /// </summary>
-    /// <param name="routeBuilder">RouteGroupBuilder</param>
-    /// <returns>RouteGroupBuilder</returns>
-    public static RouteGroupBuilder WithRxRouteHandling(this RouteGroupBuilder routeBuilder) {
-        return routeBuilder.AddEndpointFilter<RouteHandler>();
-    }
-
-    /// <summary>
-    /// Adds RazorComponent and htmx error handling to the route group.
-    /// </summary>
-    /// <typeparam name="TFallbackRootComponent">The default IRootComponent layout for the error page.</typeparam>
-    /// <typeparam name="TComponent">The IComponentModel<ErrorModel> component error page.</typeparam>
-    /// <param name="routeBuilder">RouteGroupBuilder</param>
-    /// <returns>RouteGroupBuilder</returns>
-    public static RouteGroupBuilder WithRxErrorHandling<TFallbackRootComponent, TComponent>(this RouteGroupBuilder routeBuilder)
-    where TFallbackRootComponent : IRootComponent
-    where TComponent : IComponent, IComponentModel<ErrorModel> {
-        routeBuilder.MapFallback(static (context) => {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return Task.CompletedTask;
-        });
-        return routeBuilder.AddEndpointFilter<ErrorHandler<TFallbackRootComponent, TComponent>>();
-    }
-
-
-    /// <summary>
-    /// Adds a layout for a page-level component route.
-    /// </summary>
-    /// <typeparam name="TRootComponent">The IRootComponent that is the layout for the page.</typeparam>
-    /// <param name="routeBuilder">RouteHandlerBuilder</param>
-    /// <returns>RouteHandlerBuilder</returns>
-    public static RouteHandlerBuilder WithRxRootComponent<TRootComponent>(this RouteHandlerBuilder routeBuilder)
-    where TRootComponent : IRootComponent {
-        return routeBuilder
-            .AddEndpointFilter<WithRxRootComponent>()
-            .WithMetadata(new WithRxRootComponentAttribute<TRootComponent>());
-    }
-
-    /// <summary>
-    /// Adds the UseRouter default IRootComponent layout for a page-level component route.
-    /// </summary>
-    /// <param name="routeBuilder">RouteHandlerBuilder</param>
-    /// <returns>RouteHandlerBuilder</returns>
-    public static RouteHandlerBuilder WithRxRootComponent(this RouteHandlerBuilder routeBuilder) {
-        return routeBuilder
-            .AddEndpointFilter<WithRxRootComponent>()
-            .WithMetadata(new WithRxRootComponentAttribute());
-    }
-
-    /// <summary>
-    /// Skips route handling for the configured route. Useful for things like file downloads.
-    /// </summary>
-    /// <param name="routeBuilder">RouteHandlerBuilder</param>
-    /// <returns>RouteHandlerBuilder</returns>
-    public static RouteHandlerBuilder WithRxSkipRouteHandling(this RouteHandlerBuilder routeBuilder) {
-        return routeBuilder
-            .AddEndpointFilter<WithRxSkipRouteHandling>()
-            .WithMetadata(new WithRxSkipRouteHandlingAttribute());
     }
 }
 
@@ -225,33 +172,6 @@ public class WithRxSkipRouteHandlingAttribute : Attribute { }
 
 file class WithRxSkipRouteHandling() : IEndpointFilter {
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next) {
-        return await next(context);
-    }
-}
-
-file sealed class ErrorHandler<TFallbackRootComponent, TComponent>(ILogger<ErrorHandler<TFallbackRootComponent, TComponent>> logger) : IEndpointFilter
-where TFallbackRootComponent : IRootComponent
-where TComponent : IComponent, IComponentModel<ErrorModel> {
-    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next) {
-        if (context.HttpContext.Items.ContainsKey(nameof(ErrorModel))) {
-            var model = context.HttpContext.Items[nameof(ErrorModel)] as ErrorModel;
-            logger.LogInformation("Error for request {method}:{request} with model {model}.",
-               context.HttpContext.Request.Method,
-               context.HttpContext.Request.GetDisplayUrl(),
-               model is null ? "null" : model.ToString());
-            // Add the layout component
-            context.HttpContext.Items.Add(nameof(IWithRxRootComponentAttribute), typeof(TFallbackRootComponent));
-            //short circuit and return error
-            if (model is null) {
-                return context.HttpContext.Response.RenderComponent<TComponent>();
-            }
-            logger.LogInformation("Error for request {method}:{request} - responding with status code {statusCode}.",
-                context.HttpContext.Request.Method,
-                context.HttpContext.Request.GetDisplayUrl(),
-                model.StatusCode);
-            context.HttpContext.Response.StatusCode = (int)model.StatusCode;
-            return context.HttpContext.Response.RenderComponent<TComponent, ErrorModel>(model);
-        }
         return await next(context);
     }
 }

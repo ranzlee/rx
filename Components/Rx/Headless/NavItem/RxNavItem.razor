@@ -55,11 +55,12 @@
     }
 
     private bool IsCurrentRoute(bool matchPartialRoute) {
+        var currentRoute = HttpContextAccessor.HttpContext!.Request.Path.ToString().ToLower();
         if (matchPartialRoute) {
             return MatchPartial
-            ? HttpContextAccessor.HttpContext!.GetCurrentRoute().StartsWith(NavItemRoute)
-            : NavItemRoute == HttpContextAccessor.HttpContext!.GetCurrentRoute();
+            ? currentRoute.StartsWith(NavItemRoute)
+            : NavItemRoute == currentRoute;
         }
-        return NavItemRoute == HttpContextAccessor.HttpContext!.GetCurrentRoute();
+        return NavItemRoute == currentRoute;
     }
 }

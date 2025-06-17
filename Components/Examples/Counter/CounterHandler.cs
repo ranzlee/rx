@@ -30,12 +30,13 @@ public class CounterHandler : IRequestHandler {
         IRxDriver rxDriver,
         ILogger<CounterHandler> logger
     ) {
+        //throw new InvalidOperationException();
         model = model with { Count = model.Count - 1 };
         validationContext.ValidationResult = await validator.ValidateAsync(model);
         return await rxDriver
             .With(context)
-            .AddFragment<CounterValue, CounterModel>(model, "counter-value", FragmentSwapStrategyType.Replace)
-            .AddFragment<CounterError, CounterModel>(model, "counter-error", FragmentSwapStrategyType.Morph)
+            .AddFragment<CounterValue, CounterModel>(model, "counter-value", FragmentMergeStrategyType.Swap)
+            .AddFragment<CounterError, CounterModel>(model, "counter-error", FragmentMergeStrategyType.Morph)
             .Render();
     }
 
@@ -51,8 +52,8 @@ public class CounterHandler : IRequestHandler {
         validationContext.ValidationResult = await validator.ValidateAsync(model);
         return await rxDriver
             .With(context)
-            .AddFragment<CounterValue, CounterModel>(model, "counter-value", FragmentSwapStrategyType.Morph)
-            .AddFragment<CounterError, CounterModel>(model, "counter-error", FragmentSwapStrategyType.Replace)
+            .AddFragment<CounterValue, CounterModel>(model, "counter-value", FragmentMergeStrategyType.Morph)
+            .AddFragment<CounterError, CounterModel>(model, "counter-error", FragmentMergeStrategyType.Swap)
             .Render(true);
     }
 }
